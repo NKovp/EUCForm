@@ -36,7 +36,7 @@ namespace EUCFormApp.Controllers
             // Rozparsujeme jmeno a prijmeni (Vzdy pouze 2 slova => jmeno prijmeni)
             var parts = (model.FullName ?? "").Trim().Split(' ');
             var firstName = parts[0];
-            var lastName = parts[1];
+            var lastName = parts.Length > 1 ? parts[1] : string.Empty;
 
             // Mapování ViewModel -> Entita pro DB
             var entity = new Applicant
@@ -52,6 +52,7 @@ namespace EUCFormApp.Controllers
                 CreatedAtUtc = DateTime.UtcNow
             };
 
+            // Uložíme do DB
             _db.Applicants.Add(entity);
             await _db.SaveChangesAsync();
 
