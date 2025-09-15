@@ -416,3 +416,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+## Application data (JSON exports etc.)
+EUCFormApp/Applications/*.json

@@ -1,0 +1,201 @@
+﻿@using Microsoft.AspNetCore.Mvc.Localization
+@using Microsoft.Extensions.Localization
+@inject IViewLocalizer Localizer
+@model EUCFormApp.Models.ApplicantViewModel
+
+@{
+    ViewData["Title"] = Localizer["FormTitle"];
+}
+
+<h2>@ViewData["Title"]</h2>
+
+@using (Html.BeginForm("Index", "Applicant", FormMethod.Post))
+{
+    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+    <div>
+        <label asp-for="FullName"></label>
+        <input asp-for="FullName" />
+        <span asp-validation-for="FullName" class="text-danger"></span>
+    </div>
+
+    <div>
+        <label asp-for="BirthNumber"></label>
+        <input asp-for="BirthNumber" id="birthNumber" />
+        <label>
+            <input asp-for="NoBirthNumber" type="checkbox" id="noBirthNumber" />
+            @Localizer["NoBirthNumber"]
+        </label>
+        <span asp-validation-for="BirthNumber" class="text-danger"></span>
+    </div>
+
+    <div>
+        <label asp-for="DateOfBirth"></label>
+        <input asp-for="DateOfBirth" type="date" value="" id="dob" />
+        <span asp-validation-for="DateOfBirth" class="text-danger"></span>
+    </div>
+
+    <div>
+        <label asp-for="Gender"></label>
+        <select asp-for="Gender" id="gender">
+            <option value="">-- @Localizer["Select"] --</option>
+            <option value="Male">@Localizer["Male"]</option>
+            <option value="Female">@Localizer["Female"]</option>
+        </select>
+        <span asp-validation-for="Gender" class="text-danger"></span>
+    </div>
+
+    <div>
+        <label asp-for="Email"></label>
+        <input asp-for="Email" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+
+    <div>
+        <label asp-for="Nationality"></label>
+        <select asp-for="Nationality">
+            <option value="">-- @Localizer["Select"] --</option>
+            <option value="CZ">@Localizer["CZ"]</option>
+            <option value="UK">@Localizer["UK"]</option>
+            <option value="UK">@Localizer["Other"]</option>
+        </select>
+        <span asp-validation-for="Nationality" class="text-danger"></span>
+    </div>
+
+    <div>
+        <input asp-for="GdprConsent" type="checkbox" />
+        @Localizer["GDPR"]
+        <span asp-validation-for="GdprConsent" class="text-danger"></span>
+    </div>
+
+    <button type="submit">@Localizer["Submit"]</button>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        (function () {
+            const rcInput = document.getElementById('birthNumber');
+            const noRc = document.getElementById('noBirthNumber');
+            const dobInput = document.getElementById('dob');
+            const genderSelect = document.getElementById('gender');
+            if (!rcInput || !noRc || !dobInput) return;
+
+            // --- inicializace pravidla "buď RČ, nebo zaškrtnuto Nemám RČ" ---
+            applyRequiredRule(); // nastavíme stav hned při načtení
+
+            // Po změně checkboxu přepneme povinnost RČ
+            noRc.addEventListener('change', () => {
+                applyRequiredRule();
+            });
+
+            // Po opuštění pole rodného čísla zkusíme nastavit datum narození + pohlaví
+            // (přidám i 'change', aby se to chytlo při autofillu apod.)
+            ['blur', 'change'].forEach(ev => {
+                rcInput.addEventListener(ev, () => {
+                    const rc = (rcInput.value || '').trim();
+                    const parsed = parseRc(rc);
+                    if (!parsed) return;
+
+                    const { year, month, day, gender } = parsed;
+
+                    // Nastavení data narození do input[type=date]
+                    const mm = String(month).padStart(2, '0');
+                    const dd = String(day).padStart(2, '0');
+                    dobInput.value = `${year}-${mm}-${dd}`;
+
+                    // Nastavení pohlaví, pokud není už vybrané
+                    if (gender && genderSelect && !genderSelect.value) {
+                        genderSelect.value = gender;
+                    }
+                });
+            });
+
+            // --------------------------- Pomocné funkce ---------------------------
+
+            // Přepíná, zda je RČ povinné (required) podle stavu checkboxu "Nemám RČ"
+            function applyRequiredRule() {
+                if (noRc.checked) {
+                    // Uživatel nemá RČ -> pole RČ je nepovinné a deaktivované
+                    rcInput.required = false;
+                    rcInput.value = '';
+                    rcInput.disabled = true;
+
+                    // vyčistíme klientské chybové hlášky u RČ
+                    const msg = document.querySelector('[data-valmsg-for="BirthNumber"]');
+                    if (msg) {
+                        msg.innerText = '';
+                        msg.classList.remove('field-validation-error');
+                        msg.classList.add('field-validation-valid');
+                    }
+
+                    // Pokud je aktivní jQuery Validate, odebereme pravidlo required a přezvalidujeme
+                    if (window.jQuery) {
+                        try {
+                            const $rc = jQuery(rcInput);
+                            if ($rc.rules) { $rc.rules('remove', 'required'); }
+                            if ($rc.valid) { $rc.valid(); }
+                        } catch { /* ignore */ }
+                    }
+                } else {
+                    // Uživatel má RČ -> pole RČ povinné a aktivní
+                    rcInput.disabled = false;
+                    rcInput.required = true;
+
+                    // Přidáme required i do jQuery Validate pravidel (pokud běží)
+                    if (window.jQuery) {
+                        try {
+                            const $rc = jQuery(rcInput);
+                            if ($rc.rules) { $rc.rules('add', { required: true }); }
+                            if ($rc.valid) { $rc.valid(); }
+                        } catch { /* ignore */ }
+                    }
+
+                    // pro UX vrátíme fokus do pole RČ
+                    rcInput.focus();
+                }
+            }
+
+            function parseRc(rcRaw) {
+                if (!rcRaw) return null;
+
+                // odstraníme lomítko a mezery
+                const rc = rcRaw.replace('/', '').trim();
+
+                // povoleno je 9 nebo 10 číslic
+                if (!/^\d{9,10}$/.test(rc)) return null;
+
+                const yy = parseInt(rc.slice(0, 2), 10);
+                let mm = parseInt(rc.slice(2, 4), 10);
+                const dd = parseInt(rc.slice(4, 6), 10);
+
+                let gender = null;
+
+                // úprava měsíce podle pravidel:
+                // +50 = ženy, +20 (a +70 = 50+20 ženy) se používá od roku 2004
+                if (mm > 70) { mm -= 70; gender = "Female"; }
+                else if (mm > 50) { mm -= 50; gender = "Female"; }
+                else if (mm > 20) { mm -= 20; gender = "Male"; }
+                else { gender = "Male"; }
+
+                // určení století
+                const now = new Date();
+                const currentYY = now.getFullYear() % 100;
+                let century = (rc.length === 9) ? 1900 : (yy <= currentYY ? 2000 : 1900);
+                const year = century + yy;
+
+                // ověření, že datum skutečně existuje
+                const date = new Date(Date.UTC(year, mm - 1, dd));
+                const valid =
+                    date.getUTCFullYear() === year &&
+                    (date.getUTCMonth() + 1) === mm &&
+                    date.getUTCDate() === dd;
+
+                if (!valid) return null;
+
+                return { year, month: mm, day: dd, gender };
+            }
+        })();
+    </script>
+}
